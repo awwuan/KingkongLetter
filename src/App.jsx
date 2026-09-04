@@ -603,7 +603,7 @@ export default function App() {
                     ease: [0.2, 0.8, 0.2, 1],
                   }}
                   onClick={resetExperience}>
-                  <img src="/gambar.jpg" alt="Surat" />
+                  <img src="public/gambar.jpg" alt="Surat" />
 
                   <motion.div
                     className="surprise-hint"
