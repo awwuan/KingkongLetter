@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 const OTP_CODE = '200026'
 const READ_SECONDS = 5 * 60
+const MUSIC_SRC = '/music.mp3'
 
 const LETTER_PAGES = [
   {
@@ -100,11 +101,18 @@ export default function App() {
   const [typingDone, setTypingDone] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState(READ_SECONDS)
   const [transitioning, setTransitioning] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const musicRef = useRef(null)
+  const isMutedRef = useRef(false)
   const [textSize, setTextSize] = useState(() => {
     const saved = Number(localStorage.getItem('letterTextSize'))
     return saved >= 14 && saved <= 20 ? saved : 16
   })
   const { unlock, click } = useTypingSound()
+
+  useEffect(() => {
+    isMutedRef.current = isMuted
+  }, [isMuted])
 
   const currentPage = LETTER_PAGES[pageIndex]
   const isLastPage = pageIndex === LETTER_PAGES.length - 1
@@ -146,7 +154,7 @@ export default function App() {
     const timer = setInterval(() => {
       count = Math.min(max, count + 2)
       setTypedCount(count)
-      if (count % 8 === 0) click()
+      if (!isMutedRef.current && count % 8 === 0) click()
       if (count >= max) {
         clearInterval(timer)
         setTypingDone(true)
@@ -188,6 +196,7 @@ export default function App() {
   }
 
   const resetExperience = () => {
+    stopMusic()
     setPageIndex(0)
     setTypedCount(0)
     setTypingDone(false)
@@ -201,6 +210,7 @@ export default function App() {
 
   const handleUnlocked = () => {
     unlock()
+    startMusic()
     setOtpOpen(false)
     setOpening(true)
     setTimeout(() => {
@@ -209,8 +219,52 @@ export default function App() {
     }, 1550)
   }
 
+  const startMusic = async () => {
+    const music = musicRef.current
+    if (!music) return
+
+    music.volume = 0.22
+    music.muted = isMutedRef.current
+
+    try {
+      await music.play()
+    } catch (error) {
+      console.log('Autoplay musik belum diizinkan browser:', error)
+    }
+  }
+
+  const stopMusic = () => {
+    const music = musicRef.current
+    if (!music) return
+
+    music.pause()
+    music.currentTime = 0
+  }
+
+  const toggleMute = () => {
+    setIsMuted((previous) => {
+      const nextMuted = !previous
+      isMutedRef.current = nextMuted
+
+      if (musicRef.current) {
+        musicRef.current.muted = nextMuted
+      }
+
+      return nextMuted
+    })
+  }
+
+
   return (
     <main className="app-shell">
+      <audio
+        ref={musicRef}
+        src={MUSIC_SRC}
+        loop
+        preload="auto"
+        playsInline
+      />
+
       <AmbientBackground />
 
       <AnimatePresence mode="wait">
@@ -298,6 +352,31 @@ export default function App() {
                   <button className="text-size-value" onClick={() => changeTextSize(16)} aria-label="Kembalikan ukuran teks ke normal">{textSize}</button>
                   <button onClick={() => changeTextSize(textSize + 1)} disabled={textSize >= 20} aria-label="Perbesar teks">A+</button>
                 </div>
+
+                <motion.button
+                  type="button"
+                  onClick={toggleMute}
+                  whileTap={{ scale: 0.9 }}
+                  aria-label={isMuted ? 'Hidupkan suara' : 'Matikan suara'}
+                  title={isMuted ? 'Sound Off — tap untuk hidupkan' : 'Sound On — tap untuk mute'}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    flex: '0 0 38px',
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,.10)',
+                    background: 'rgba(255,255,255,.055)',
+                    color: '#fff',
+                    padding: 0,
+                    cursor: 'pointer',
+                    WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  <SoundIcon muted={isMuted} />
+                </motion.button>
+
                 <span className="nav-page">{String(pageIndex + 1).padStart(2, '0')} / {String(LETTER_PAGES.length).padStart(2, '0')}</span>
               </div>
             </header>
@@ -473,7 +552,7 @@ function OtpModal({ onClose, onSuccess }) {
     next[index] = clean
     setDigits(next)
     if (clean && index < 5) refs.current[index + 1]?.focus()
-    if (next.every(Boolean)) setTimeout(() => submit(next), 100)
+    if (next.every(Boolean)) submit(next)
   }
 
   const keyDown = (index, event) => {
@@ -488,7 +567,7 @@ function OtpModal({ onClose, onSuccess }) {
     numbers.forEach((value, index) => { next[index] = value })
     setDigits(next)
     refs.current[Math.min(numbers.length, 5)]?.focus()
-    if (numbers.length === 6) setTimeout(() => submit(next), 100)
+    if (numbers.length === 6) submit(next)
   }
 
   return (
@@ -529,6 +608,20 @@ function OtpModal({ onClose, onSuccess }) {
         <button className="text-btn" onClick={onClose}>Kembali</button>
       </motion.div>
     </motion.div>
+  )
+}
+
+function SoundIcon({ muted }) {
+  return muted ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m16 9 5 5M21 9l-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 9.5a4 4 0 0 1 0 5M18 7a7 7 0 0 1 0 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
   )
 }
 
